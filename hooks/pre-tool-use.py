@@ -21,10 +21,10 @@ LOG_DIR = os.path.expanduser("~/.claude/hooks")
 LOG_FILE = os.path.join(LOG_DIR, "blocked.log")
 
 def log_blocked(command: str, reason: str, cwd: str):
-    os.makedirs(LOG_DIR, exist_ok=True)
     timestamp = datetime.now().isoformat()
     entry = f"[{timestamp}] REASON: {reason} | CWD: {cwd} | CMD: {command}\n"
     try:
+        os.makedirs(LOG_DIR, exist_ok=True)
         with open(LOG_FILE, "a", encoding="utf-8") as f:
             f.write(entry)
     except Exception:
@@ -40,7 +40,7 @@ def inspect_command(command: str, cwd: str):
                 f"Command: {command}\n"
                 f"Audit logged to: {LOG_FILE}\n\n"
             )
-            sys.exit(1)
+            sys.exit(2)
 
 def main():
     # Claude Code passes tool invocation context via stdin JSON or CLI arguments
@@ -52,7 +52,13 @@ def main():
         try:
             raw = sys.stdin.read()
             data = json.loads(raw)
-            cmd = data.get("command") or data.get("input", {}).get("command", "")
+            # Official PreToolUse payload; retain the legacy standalone formats.
+            if data.get("tool_name") not in (None, "Bash"):
+                return
+            cwd = data.get("cwd") or cwd
+            cmd = (data.get("tool_input", {}).get("command")
+                   or data.get("command")
+                   or data.get("input", {}).get("command", ""))
         except Exception:
             cmd = raw if "raw" in locals() else ""
 
